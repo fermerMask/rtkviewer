@@ -108,6 +108,7 @@ class App:
         self.nmea = NMEA()
 
     def create_view(self, root):
+
         self.f_left = tk.Frame(root, bg='#fdfdf0', relief='groove', bd=3, padx=5, pady=5)
         self.f_right = tk.Frame(root, bg='#fdfdf0', padx=5, pady=5)
 
@@ -117,6 +118,21 @@ class App:
         self.f_map = tk.Frame(self.f_right_top, bg='#f8f4e6', relief='groove', bd=3)
         self.f_vel = tk.Frame(self.f_right_bottom, bg='#f8f4e6', relief='groove', bd=3)
         self.f_3d = tk.Frame(self.f_right_bottom, bg='#f8f4e6', relief='groove', bd=3)
+
+        self.m_fig = plt.figure()
+        self.map_canvas = FigureCanvasTkAgg(self.m_fig, master=self.f_map)
+        self.map_canvas.draw()
+        self.map_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        self.v_fig = plt.figure(figsize=(3.2, 2.4))
+        self.vel_canvas = FigureCanvasTkAgg(self.v_fig, master=self.f_vel)
+        self.vel_canvas.draw()
+        self.vel_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        self._3d_fig = plt.figure()
+        self._3d_canvas = FigureCanvasTkAgg(self._3d_fig, master=self.f_3d)
+        self._3d_canvas.draw()
+        self._3d_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         self.create_control_panel(self.f_left)
 
@@ -128,13 +144,16 @@ class App:
         self.f_vel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.f_3d.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
+
+
     def create_control_panel(self, parent):
+
         self.button_file = tk.Button(parent, text='Select File', command=self._select_file)
         self.label2 = tk.Label(parent, text='time', bg='#fdfdf0')
         self.textbox1 = tk.Entry(parent, width=10)
         self.textbox2 = tk.Entry(parent, width=10)
         self.button_plot = tk.Button(parent, text='Plot',
-                                     command=lambda: [plt.close(), self._map_plot(), self._plot_vel(), self._plot_3d()])
+                                     command=self._update_graphs)#lambda: [plt.close(),self._map_plot(), self._plot_vel(), self._plot_3d()])
 
         self.button_file.pack(side=tk.TOP, anchor=tk.W, padx=5, pady=5)
         self.label2.pack(side=tk.TOP, anchor=tk.W, padx=5, pady=5)
@@ -144,13 +163,12 @@ class App:
 
     def run(self):
         self.root.mainloop()
-
     def _map_plot(self):
 
         xs, ys, zs, vs, modes, ts = self.nmea.get_3d(-1,-1)
 
-        fig = plt.figure()
-        ax = fig.add_subplot()
+        #fig = plt.figure()
+        ax = self.m_fig.add_subplot()
 
         rdedg = gp.read_file('toda/20221001-rdedg.shp')
         wa = gp.read_file('toda/20221001-wa.shp')
@@ -168,37 +186,41 @@ class App:
 
         ax.set_xlim(-14650, -14000)
         ax.set_ylim(-22000, -21800)
-        canvas = FigureCanvasTkAgg(fig, master=self.f_map)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        #self.canvas1 = FigureCanvasTkAgg(fig, master=self.f_map)
+        #self.map_canvas.draw()
+        #canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def _plot_vel(self):
         t1 = int(self.textbox1.get())
         t2 = int(self.textbox2.get())
         vs, ts = self.nmea.get_vels(t1, t2)
 
-        fig = plt.figure(figsize=(3.2, 2.4))
-        ax = fig.add_subplot()
+        #fig = plt.figure(figsize=(3.2, 2.4))
+        ax = self.v_fig.add_subplot()
 
         ax.plot(ts, vs)
         ax.grid(linestyle=':')
-        canvas = FigureCanvasTkAgg(fig, master=self.f_vel)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        #canvas = FigureCanvasTkAgg(fig, master=self.f_vel)
+       #self.vel_canvas.draw()
+        #canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
 
     def _plot_3d(self):
+
         t1 = int(self.textbox1.get())
         t2 = int(self.textbox2.get())
         xs, ys, zs, vs, modes, ts = self.nmea.get_3d(t1, t2)
 
-        fig = plt.figure()
-        ax = fig.add_subplot(projection='3d')
+        #fig = plt.figure()
+        ax = self._3d_fig.add_subplot(projection='3d')
 
         mappable = ax.scatter(xs, ys, zs, marker='.', s=vs,c=vs, vmin=0, vmax=5, cmap='jet', zorder=5)
 
-        canvas = FigureCanvasTkAgg(fig, master=self.f_3d)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        #canvas = FigureCanvasTkAgg(fig, master=self.f_3d)
+        #self._3d_canvas.draw()
+        #canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def _select_file(self):
         self.file = tk.filedialog.askopenfilename(initialdir='.', title='Select File')
@@ -207,6 +229,12 @@ class App:
             self.nmea.load(self.file)
             self.button_plot.config(stat='active')
 
+    def _update_graphs(self):
+        plt.close()
+
+        self._map_plot()
+        self._plot_vel()
+        self._plot_3d()
 
 def main():
     app = App()
@@ -214,5 +242,6 @@ def main():
 
 
 if __name__ == '__main__':
+
     app = App()
     app.run()
