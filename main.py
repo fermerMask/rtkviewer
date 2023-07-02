@@ -20,7 +20,7 @@ class NMEA:
 
         dict = {}
         for d in ds:
-            if d[0] == '$GNGGA' and len(d) == 15 and d[2] != '' and d[4] != '' and d[6] != '':
+            if d[0][3:6] == 'GGA' and len(d) == 15 and d[2] != '' and d[4] != '' and d[6] != '':
                 t, lat, lon, mode, alt = self.hms_to_sec(d[1]), d[2], d[4], d[6], d[9]
                 if t not in dict:
                     dict[t] = {}
@@ -29,7 +29,7 @@ class NMEA:
                 dict[t]['mode'] = int(mode)
                 dict[t]['alt'] = float(alt)
 
-            elif d[0] == '$GNRMC' and len(d) == 14 and d[3] != '' and d[5] != '' and d[7] != '':
+            elif d[0][3:6] == 'RMC'and d[3] != '' and d[5] != '' and d[7] != '':
                 t, lat, lon, vel = self.hms_to_sec(d[1]), d[3], d[5], d[7]
                 if t not in dict:
                     dict[t] = {}
@@ -38,6 +38,7 @@ class NMEA:
                 dict[t]['vel'] = self.mile_to_meter(vel)
 
         self.dict = dict
+
         return dict
 
     def dm_to_sd(self, dm):
@@ -58,10 +59,10 @@ class NMEA:
         v = float(mile) * 1.852 * 1000 / 3600
         return v
 
-    def get_vels(self, t1, t2):
+    def get_vels(self, t1=-1, t2=-1):
         dict = self.dict
         ts = sorted(dict.keys())
-        vs, ts2 = [], []
+        vs, ts2, vel = [], [], 0
         for t in ts:
             d = dict[t]
             vel = d['vel'] if 'vel' in d else vel
@@ -72,12 +73,12 @@ class NMEA:
 
         return vs, ts2
 
-    def get_3d(self, t1, t2):
+    def get_3d(self, t1=-1, t2=-1):
         print('extract 3d information ... ')
         dict = self.dict
         ts = sorted(dict.keys())
         xs, ys, zs, vs, modes, ts2 = [], [], [], [], [], []
-        mode, alt = 0, 0
+        mode, alt, vel = 0, 0, 0
         transformer = Transformer.from_crs('epsg:4612', 'epsg:2451')
         for t in ts:
             d = dict[t]
@@ -108,52 +109,32 @@ class App:
         self.nmea = NMEA()
 
     def create_view(self, root):
-
         self.f_left = tk.Frame(root, bg='#fdfdf0', relief='groove', bd=3, padx=5, pady=5)
         self.f_right = tk.Frame(root, bg='#fdfdf0', padx=5, pady=5)
-
         self.f_right_top = tk.Frame(self.f_right, bg='#f8f4e6')
         self.f_right_bottom = tk.Frame(self.f_right, bg='#f8f4e6')
-
         self.f_map = tk.Frame(self.f_right_top, bg='#f8f4e6', relief='groove', bd=3)
         self.f_vel = tk.Frame(self.f_right_bottom, bg='#f8f4e6', relief='groove', bd=3)
         self.f_3d = tk.Frame(self.f_right_bottom, bg='#f8f4e6', relief='groove', bd=3)
 
-        self.m_fig = plt.figure()
-        self.map_canvas = FigureCanvasTkAgg(self.m_fig, master=self.f_map)
-        self.map_canvas.draw()
-        self.map_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-        self.v_fig = plt.figure(figsize=(3.2, 2.4))
-        self.vel_canvas = FigureCanvasTkAgg(self.v_fig, master=self.f_vel)
-        self.vel_canvas.draw()
-        self.vel_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-        self._3d_fig = plt.figure()
-        self._3d_canvas = FigureCanvasTkAgg(self._3d_fig, master=self.f_3d)
-        self._3d_canvas.draw()
-        self._3d_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
         self.create_control_panel(self.f_left)
 
         self.f_left.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
-        self.f_right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.f_right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         self.f_right_top.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         self.f_right_bottom.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
         self.f_map.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         self.f_vel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.f_3d.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-
-
     def create_control_panel(self, parent):
-
         self.button_file = tk.Button(parent, text='Select File', command=self._select_file)
         self.label2 = tk.Label(parent, text='time', bg='#fdfdf0')
         self.textbox1 = tk.Entry(parent, width=10)
         self.textbox2 = tk.Entry(parent, width=10)
         self.button_plot = tk.Button(parent, text='Plot',
-                                     command=self._update_graphs)#lambda: [plt.close(),self._map_plot(), self._plot_vel(), self._plot_3d()])
+                                     command=lambda: [plt.close(), self._map_pitch_plot(), self._plot_vel(),
+                                                      self._plot_3d()])
 
         self.button_file.pack(side=tk.TOP, anchor=tk.W, padx=5, pady=5)
         self.label2.pack(side=tk.TOP, anchor=tk.W, padx=5, pady=5)
@@ -163,12 +144,12 @@ class App:
 
     def run(self):
         self.root.mainloop()
-    def _map_plot(self):
 
-        xs, ys, zs, vs, modes, ts = self.nmea.get_3d(-1,-1)
+    def _map_pitch_plot(self):
+        xs, ys, zs, vs, modes, ts = self.nmea.get_3d()
 
-        #fig = plt.figure()
-        ax = self.m_fig.add_subplot()
+        fig = plt.figure()
+        ax = fig.add_subplot()
 
         rdedg = gp.read_file('toda/20221001-rdedg.shp')
         wa = gp.read_file('toda/20221001-wa.shp')
@@ -186,41 +167,35 @@ class App:
 
         ax.set_xlim(-14650, -14000)
         ax.set_ylim(-22000, -21800)
-
-        #self.canvas1 = FigureCanvasTkAgg(fig, master=self.f_map)
-        #self.map_canvas.draw()
-        #canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        canvas = FigureCanvasTkAgg(fig, master=self.f_map)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def _plot_vel(self):
         t1 = int(self.textbox1.get())
         t2 = int(self.textbox2.get())
         vs, ts = self.nmea.get_vels(t1, t2)
 
-        #fig = plt.figure(figsize=(3.2, 2.4))
-        ax = self.v_fig.add_subplot()
-
+        fig = plt.figure(figsize=(3.2, 2.4))
+        ax = fig.add_subplot()
         ax.plot(ts, vs)
         ax.grid(linestyle=':')
-
-        #canvas = FigureCanvasTkAgg(fig, master=self.f_vel)
-       #self.vel_canvas.draw()
-        #canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
+        canvas = FigureCanvasTkAgg(fig, master=self.f_vel)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def _plot_3d(self):
-
         t1 = int(self.textbox1.get())
         t2 = int(self.textbox2.get())
         xs, ys, zs, vs, modes, ts = self.nmea.get_3d(t1, t2)
 
-        #fig = plt.figure()
-        ax = self._3d_fig.add_subplot(projection='3d')
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        mappable = ax.scatter(xs, ys, zs, marker='.', c=vs, vmin=0, vmax=5, cmap='jet', zorder=5)
 
-        mappable = ax.scatter(xs, ys, zs, marker='.', s=vs,c=vs, vmin=0, vmax=5, cmap='jet', zorder=5)
-
-        #canvas = FigureCanvasTkAgg(fig, master=self.f_3d)
-        #self._3d_canvas.draw()
-        #canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        canvas = FigureCanvasTkAgg(fig, master=self.f_3d)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
     def _select_file(self):
         self.file = tk.filedialog.askopenfilename(initialdir='.', title='Select File')
@@ -229,12 +204,6 @@ class App:
             self.nmea.load(self.file)
             self.button_plot.config(stat='active')
 
-    def _update_graphs(self):
-        plt.close()
-
-        self._map_plot()
-        self._plot_vel()
-        self._plot_3d()
 
 def main():
     app = App()
@@ -242,6 +211,5 @@ def main():
 
 
 if __name__ == '__main__':
-
     app = App()
     app.run()
