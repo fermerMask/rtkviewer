@@ -1,9 +1,11 @@
 import tkinter as tk
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from pyproj import Transformer
 import geopandas as gp
+from tkinter import messagebox
 
+from matplotlib.widgets import RangeSlider
 
 class NMEA:
     def __init__(self):
@@ -107,6 +109,16 @@ class App:
         self.root.geometry('840x725')
         self.create_view(self.root)
         self.nmea = NMEA()
+        self.root.protocol("WM_DELETE_WINDOW", self.delete_window)
+
+    def delete_window(self):
+        ret = messagebox.askyesno(
+            title="終了確認",
+            message="アプリケーションを終了しますか？"
+        )
+        if ret == True:
+            self.root.destroy()
+            self.root.quit()
 
     def create_view(self, root):
         self.f_left = tk.Frame(root, bg='#fdfdf0', relief='groove', bd=3, padx=5, pady=5)
@@ -148,7 +160,7 @@ class App:
     def _map_pitch_plot(self):
         xs, ys, zs, vs, modes, ts = self.nmea.get_3d()
 
-        fig = plt.figure()
+        fig = plt.figure(figsize=(3.2, 2.4))
         ax = fig.add_subplot()
 
         rdedg = gp.read_file('toda/20221001-rdedg.shp')
@@ -170,6 +182,7 @@ class App:
         canvas = FigureCanvasTkAgg(fig, master=self.f_map)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        toolbar = NavigationToolbar2Tk(canvas, self.f_map)
 
     def _plot_vel(self):
         t1 = int(self.textbox1.get())
@@ -197,6 +210,7 @@ class App:
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+
     def _select_file(self):
         self.file = tk.filedialog.askopenfilename(initialdir='.', title='Select File')
         if self.file:
@@ -207,9 +221,10 @@ class App:
 
 def main():
     app = App()
-    app.run()
+    app.run
 
 
 if __name__ == '__main__':
     app = App()
     app.run()
+
